@@ -1,0 +1,23 @@
+services:
+  app:
+    image: mcr.microsoft.com/devcontainers/python:3.14  # dev container image with Python 3.14 preinstalled
+    command: sleep infinity  # keep the container running so you can attach/dev into it
+    volumes:
+      - ../:/workspace  # mount the repo into the container for live editing
+    depends_on:
+      - db  # start the database service before the app (compose startup order hint)
+
+  db:
+    image: postgres:18  # official Postgres image (version 18)
+    restart: no  # don't auto-restart the DB in this dev scenario
+    environment:
+      POSTGRES_USER: postgres  # DB username (dev only)
+      POSTGRES_PASSWORD: password  # DB password (dev only)
+      POSTGRES_DB: links_db  # default database name to create
+    ports:
+      - "5432:5432"  # expose Postgres on localhost:5432 for local connections
+    volumes:
+      - tk07-data:/var/lib/postgresql  # persist DB files in a named volume
+
+volumes:
+  tk07-data:  # named volume that stores Postgres data between runs

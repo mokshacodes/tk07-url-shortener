@@ -1,0 +1,59 @@
+[project]
+name = "tk02-adr-for-uv-krisjordan"
+version = "0.1.0"
+description = "Starter project demonstrating ADR-driven setup with uv."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.115.0",
+    "pydantic>=2.11.0",
+    "sqlmodel>=0.0.24",
+    "psycopg2-binary>=2.9.0",
+]
+
+[tool.uv]
+# Keep environments project-local for reproducibility.
+managed = true
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["src"]
+markers = [
+    "integration: marks integration tests (deselect with -m 'not integration')",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27.0",
+    "pyright>=1.1.390",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.4.0",
+    "uvicorn>=0.40.0",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+src = ["src", "test"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.pyright]
+include = ["src", "test"]
+extraPaths = ["src"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = "none"

@@ -1,4 +1,4 @@
-"""API Router (710453084)"""
+"""API router for the URL shortener."""
 
 from typing import Annotated
 
@@ -35,11 +35,13 @@ def create_link(
     ],
     link_svc: LinkServiceDI,
 ) -> LinkModel:
+    """Create a new shortened link."""
     return link_svc.create(link.slug, link)
 
 
 @router.get("/links", summary="List all Links", tags=["Amy"])
 def read_links(link_svc: LinkServiceDI) -> list[LinkModel]:
+    """List all shortened links."""
     return link_svc.list_links()
 
 
@@ -49,7 +51,7 @@ def read_links(link_svc: LinkServiceDI) -> list[LinkModel]:
     description="When a matching slug exists, redirects user to the target. Otherwise, 404",
     responses={
         307: {"description": "Temporary redirect"},
-        404: {"description": "Permanent redirect"},
+        404: {"description": "Not found"},
     },
     tags=["Cai"],
     status_code=status.HTTP_307_TEMPORARY_REDIRECT,
@@ -75,11 +77,11 @@ def follow_link(
     ],
     link_svc: LinkServiceDI,
 ) -> Response:
+    """Redirect to the stored target URL when the slug exists."""
     link = link_svc.get(slug)
-    if link:
+    if link is not None:
         return RedirectResponse(
-            url="https://comp423-26s.github.io",
+            url=link.target,
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
         )
-    else:
-        return Response("Not Found", status.HTTP_404_NOT_FOUND)
+    return Response("Not Found", status.HTTP_404_NOT_FOUND)

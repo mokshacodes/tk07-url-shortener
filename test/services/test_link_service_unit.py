@@ -1,91 +1,105 @@
+"""Unit tests for the link service."""
+
 from unittest.mock import MagicMock
 
 import pytest
+from sqlmodel import Session
 
+from entities import Link
 from models import LinkModel
 from services import LinkService
-from store import LinkStore
 
 
 @pytest.fixture()
-def link_svc() -> tuple[LinkService, MagicMock]:
-    mock_store = MagicMock(spec=LinkStore)
-    link_svc = LinkService(mock_store)
-    return (link_svc, mock_store)
+def session_mock() -> MagicMock:
+    """Provide a mocked database session."""
+    return MagicMock(spec=Session)
 
 
-def test_link_service_get(link_svc: tuple[LinkService, MagicMock]):
-    # Arrange
-    svc, store_mock = link_svc
-    expected: LinkModel = LinkModel(slug="423", target="https://comp423")
-    store_mock.get.return_value = expected
+@pytest.fixture()
+def link_svc(session_mock: MagicMock) -> LinkService:
+    """Provide a link service wired to a mocked session."""
+    return LinkService(session_mock)
 
-    # Act
-    actual = svc.get("423")
 
-    # Assert
-    assert actual is not None
-    assert actual is expected
-    assert actual.hits == 1
-    store_mock.put.assert_called_once_with("423", expected)
+def test_link_service_get(session_mock: MagicMock, link_svc: LinkService) -> None:
+    """Returns a link model and increments its hit count."""
+    existing = Link(slug="423", target="https://comp423", hits=0)
+    session_mock.get.return_value = existing
+
+    actual = link_svc.get("423")
+
+    assert actual == LinkModel(slug="423", target="https://comp423", hits=1)
+    session_mock.get.assert_called_once_with(Link, "423")
+    session_mock.add.assert_called_once_with(existing)
+    session_mock.commit.assert_called_once_with()
+    session_mock.refresh.assert_called_once_with(existing)
 
 
 def test_link_service_get_returns_none_for_missing_slug(
-    link_svc: tuple[LinkService, MagicMock],
+    session_mock: MagicMock, link_svc: LinkService
 ) -> None:
-    # Arrange
-    svc, store_mock = link_svc
-    store_mock.get.return_value = None
+    """Returns None when the slug does not exist."""
+    session_mock.get.return_value = None
 
-    # Act
-    actual = svc.get("missing")
+    actual = link_svc.get("missing")
 
-    # Assert
     assert actual is None
-    store_mock.put.assert_not_called()
+    session_mock.add.assert_not_called()
+    session_mock.commit.assert_not_called()
+    session_mock.refresh.assert_not_called()
 
 
 def test_link_service_create_persists_new_link(
-    link_svc: tuple[LinkService, MagicMock],
+    session_mock: MagicMock, link_svc: LinkService
 ) -> None:
-    # Arrange
-    svc, store_mock = link_svc
+    """Persists a new link and returns it."""
+    session_mock.get.return_value = None
     link = LinkModel(slug="423", target="https://comp423")
-    store_mock.get.return_value = None
 
-    # Act
-    actual = svc.create("423", link)
+    actual = link_svc.create("423", link)
 
-    # Assert
-    assert actual is link
-    store_mock.get.assert_called_once_with("423")
-    store_mock.put.assert_called_once_with("423", link)
+    assert actual == LinkModel(slug="423", target="https://comp423", hits=0)
+    session_mock.get.assert_called_once_with(Link, "423")
+    added_link = session_mock.add.call_args.args[0]
+    assert isinstance(added_link, Link)
+    assert (added_link.slug, added_link.target, added_link.hits) == (
+        "423",
+        "https://comp423",
+        0,
+    )
+    session_mock.commit.assert_called_once_with()
+    session_mock.refresh.assert_called_once_with(added_link)
 
 
 def test_link_service_create_raises_for_duplicate_slug(
-    link_svc: tuple[LinkService, MagicMock],
+    session_mock: MagicMock, link_svc: LinkService
 ) -> None:
-    # Arrange
-    svc, _ = link_svc
-    existing = LinkModel(slug="423", target="https://comp423")
-    svc.get = MagicMock(return_value=existing)
+    """Raises ValueError for duplicate slugs."""
+    existing = Link(slug="423", target="https://comp423")
+    session_mock.get.return_value = existing
 
-    # Act / Assert
     with pytest.raises(ValueError, match="Slug `423` already taken."):
-        svc.create("423", existing)
+        link_svc.create("423", LinkModel(slug="423", target="https://comp423"))
+
+    session_mock.add.assert_not_called()
+    session_mock.commit.assert_not_called()
 
 
 def test_link_service_list_links_returns_all_values(
-    link_svc: tuple[LinkService, MagicMock],
+    session_mock: MagicMock, link_svc: LinkService
 ) -> None:
-    # Arrange
-    svc, store_mock = link_svc
-    comp423 = LinkModel(slug="423", target="https://comp423")
-    unc = LinkModel(slug="unc", target="https://www.unc.edu")
-    store_mock.list.return_value = {"423": comp423, "unc": unc}
+    """Returns all stored links as link models."""
+    comp423 = Link(slug="423", target="https://comp423")
+    unc = Link(slug="unc", target="https://www.unc.edu")
+    exec_result = MagicMock()
+    exec_result.all.return_value = [comp423, unc]
+    session_mock.exec.return_value = exec_result
 
-    # Act
-    actual = svc.list_links()
+    actual = link_svc.list_links()
 
-    # Assert
-    assert actual == [comp423, unc]
+    assert actual == [
+        LinkModel(slug="423", target="https://comp423", hits=0),
+        LinkModel(slug="unc", target="https://www.unc.edu", hits=0),
+    ]
+    session_mock.exec.assert_called_once()
